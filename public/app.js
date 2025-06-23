@@ -15,7 +15,7 @@ $(document).ready(() => {
 })
 
 // Hardcoded TikTok channel
-const HARDCODED_CHANNEL = "zembra_live";
+const HARDCODED_CHANNEL = "tayssirmansourbrigui";
 
 function connect() {
     let uniqueId = HARDCODED_CHANNEL;
@@ -223,11 +223,11 @@ const uniqueNumbers = new Set();
 // Fix phone number extraction to handle slashes and spaces before the number
 function extractUniqueNumbers(text) {
     // Find all possible digit groups that could be phone numbers
-    let chunks = text.match(/[2459][\d\s./-]{7,20}/g) || [];
+    let chunks = text.match(/[2459][\d\s.,/_-]{7,20}/g) || [];
     let results = [];
     for (let chunk of chunks) {
         // Remove separators inside the chunk
-        let cleaned = chunk.replace(/[\s./-]/g, '');
+        let cleaned = chunk.replace(/[\s.,/_-]/g, '');
         // Check for exact 8 digits starting with 2, 4, 5, or 9
         if (/^[2459]\d{7}$/.test(cleaned)) {
             results.push(cleaned);
