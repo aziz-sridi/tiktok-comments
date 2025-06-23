@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <link rel="stylesheet" href="style.css">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"  crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.1/socket.io.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+    <script src="connection.js"></script>
+    <script src="app.js"></script>
+    <script src="settings.js"></script>
+    <style>
+        #langToggleContainer {
+            position: fixed;
+            top: 10px;
+            right: 60px;
+            z-index: 2001;
+        }
+        #langToggleContainer button {
+            margin-left: 6px;
+            padding: 6px 14px;
+            border-radius: 6px;
+            border: 1px solid #bfc9d9;
+            background: #fff;
+            color: #23272f;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        #langToggleContainer button.active {
+            background: #447dd4;
+            color: #fff;
+        }
+    </style>
+    <script>
+        // Simple translation dictionary
+        window.translations = {
+            en: {
+                connect: "Connect",
+                phoneNumbers: "Phone Numbers",
+                allNotifications: "All Notifications",
+                hide: "Hide",
+                show: "Show",
+                subscriptions: "Subscriptions this live",
+                shares: "Shares this live",
+                fileNamePlaceholder: "File name (e.g. numbers.txt)",
+                downloadNumbers: "Download Numbers",
+                downloadComments: "Download Comments with Numbers",
+                noNumbers: "No 8-digit numbers found.",
+                downloadedNumbers: "Downloaded {n} numbers.",
+                noComments: "No comments with numbers found.",
+                downloadedComments: "Downloaded {n} comments.",
+                savePath: "Save Path",
+                showNotifications: "Show Notifications",
+                showNotificationsBtn: "Show Notifications",
+                joined: "joined",
+                shared: "shared the live",
+                viewers: "Viewers",
+                likes: "Likes",
+                enterUsername: "Enter the @username of a user who is currently live:",
+                // ...add more as needed
+            },
+            fr: {
+                connect: "Se connecter",
+                phoneNumbers: "Numéros de téléphone",
+                allNotifications: "Toutes les notifications",
+                hide: "Cacher",
+                show: "Afficher",
+                subscriptions: "Abonnements ce live",
+                shares: "Partages ce live",
+                fileNamePlaceholder: "Nom du fichier (ex: numeros.txt)",
+                downloadNumbers: "Télécharger les numéros",
+                downloadComments: "Télécharger les commentaires avec numéros",
+                noNumbers: "Aucun numéro à 8 chiffres trouvé.",
+                downloadedNumbers: "{n} numéros téléchargés.",
+                noComments: "Aucun commentaire avec numéro trouvé.",
+                downloadedComments: "{n} commentaires téléchargés.",
+                savePath: "Chemin d'enregistrement",
+                showNotifications: "Afficher les notifications",
+                showNotificationsBtn: "Afficher les notifications",
+                joined: "a rejoint",
+                shared: "a partagé le live",
+                viewers: "Spectateurs",
+                likes: "Likes",
+                enterUsername: "Entrez le @username d'un utilisateur actuellement en direct :",
+                // ...add more as needed
+            }
+        };
+        window.currentLang = 'en';
+        function setLang(lang) {
+            window.currentLang = lang;
+            // Update all translatable elements
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                let key = el.getAttribute('data-i18n');
+                if (window.translations[lang][key]) {
+                    if (el.tagName === 'INPUT' && el.type === 'button') {
+                        el.value = window.translations[lang][key];
+                    } else if (el.tagName === 'INPUT' && el.type === 'text') {
+                        el.placeholder = window.translations[lang][key];
+                    } else {
+                        el.textContent = window.translations[lang][key];
+                    }
+                }
+            });
+            // Update modal labels
+            document.getElementById('savePathLabel').textContent = window.translations[lang].savePath + ":";
+            // Update floating button
+            document.querySelector('#showNotificationsFloatingBtn button').textContent = window.translations[lang].showNotificationsBtn;
+        }
+        window.onload = function() {
+            setLang(window.currentLang);
+        }
+    </script>
+</head>
+<body>
+    <div id="langToggleContainer">
+        <button id="langEN" class="active">EN</button>
+        <button id="langFR">FR</button>
+    </div>
+    <script>
+        document.getElementById('langEN').onclick = function() {
+            setLang('en');
+            this.classList.add('active');
+            document.getElementById('langFR').classList.remove('active');
+        };
+        document.getElementById('langFR').onclick = function() {
+            setLang('fr');
+            this.classList.add('active');
+            document.getElementById('langEN').classList.remove('active');
+        };
+    </script>
+    <div style="max-width: 1200px; margin: 0 auto;">
+        <div class="inputFields">
+            <!-- Only connect button, no username input -->
+            <input type="button" id="connectButton" data-i18n="connect" value="Start Extracting" title="Start extracting phone numbers from the live chat">
+        </div>
+
+        <!-- New: Filter and Download Section -->
+        <div class="inputFields" style="margin-top:24px;">
+            <input type="text" id="fileNameInput" data-i18n="fileNamePlaceholder" placeholder="File name (e.g. numbers.txt)">
+            <input type="button" id="downloadNumbersBtn" data-i18n="downloadNumbers" value="Download Numbers">
+            <input type="button" id="downloadCommentsBtn" data-i18n="downloadComments" value="Download Comments with Numbers" style="margin-left:8px;">
+            <span id="downloadStatus" style="margin-left:10px;color:#447dd4;"></span>
+        </div>
+
+        <table class="splitstatetable">
+            <tr>
+                <td>
+                    <pre id="stateText"></pre>
+                </td>
+                <td>
+                    <div id="roomStats"></div>
+                </td>
+            </tr>
+        </table>
+
+        <div class="main-flex-row" style="display: flex; gap: 48px; flex-wrap: wrap;">
+            <!-- Section 1: Phone Numbers -->
+            <div class="chatcontainer" id="phoneNumbersContainer" style="flex:1; min-width:350px; transition:width 0.3s, max-width 0.3s; position:relative;">
+                <div class="containerheader">
+                    <span data-i18n="phoneNumbers">Phone Numbers</span> (<span id="phoneNumbersCount">0</span>)
+                </div>
+                <!-- Phone number comments will appear here -->
+            </div>
+
+            <!-- Section 2: All Notifications -->
+            <div class="chatcontainer" id="notificationsContainer" style="flex:1; min-width:350px; transition:width 0.3s, max-width 0.3s; position:relative;">
+                <div class="containerheader" style="display:flex;align-items:center;justify-content:space-between;">
+                    <span data-i18n="allNotifications">All Notifications</span>
+                    <span style="display:flex;align-items:center;">
+                        <button id="toggleNotificationsBtn" style="margin-left:10px;font-size:0.9em;" data-i18n="hide">Hide</button>
+                    </span>
+                </div>
+                <!-- All notifications will appear here -->
+            </div>
+
+            <!-- Moved Counters to the right, stacked vertically and larger -->
+            <div id="liveCounters" style="display:flex; flex-direction:column; justify-content:flex-start; align-items:flex-end; min-width:200px; margin-left:auto;">
+                <div style="font-size:1.4em; font-weight:bold; margin-bottom:12px;">
+                    <span data-i18n="subscriptions">Subscriptions this live</span>: <span id="subscriptionsCount">0</span>
+                </div>
+                <div style="font-size:1.4em; font-weight:bold;">
+                    <span data-i18n="shares">Shares this live</span>: <span id="sharesCount">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settingsModal" style="display:none; position:fixed; top:20%; left:40%; background:#fff; border:1px solid #ccc; padding:20px; z-index:1000;">
+            <label id="savePathLabel">Save Path:</label>
+            <input id="savePathInput" type="text" style="width:300px;" />
+            <br><br>
+            <div>
+                <b>Show Notifications:</b><br>
+                <label><input type="checkbox" id="toggleJoins" checked> Joins</label><br>
+                <label><input type="checkbox" id="toggleLikes" checked> Likes</label><br>
+                <label><input type="checkbox" id="toggleChats" checked> Chats</label><br>
+                <label><input type="checkbox" id="toggleGifts" checked> Gifts</label><br>
+                <label><input type="checkbox" id="toggleFollows" checked> Follows</label><br>
+            </div>
+            <br>
+            <button id="saveSettingsBtn">Save</button>
+            <button id="closeSettingsBtn">Cancel</button>
+        </div>
+
+        <!-- Toggle All Notifications section -->
+        <div id="showNotificationsFloatingBtn" style="display:none;position:fixed;bottom:24px;right:24px;z-index:1001;">
+            <button style="font-size:1.1em;padding:12px 24px;border-radius:8px;background:#447dd4;color:#fff;border:none;box-shadow:0 2px 8px rgba(0,0,0,0.10);cursor:pointer;" data-i18n="showNotificationsBtn">
+                Show Notifications
+            </button>
+        </div>
+    </div>
+    <!-- Place scroll-down buttons here, outside the scrolling containers -->
+    <button id="scrollPhoneNumbersBtn" class="scroll-down-btn" title="Scroll to bottom" style="display:none;">
+        &#x2B07;
+    </button>
+    <button id="scrollNotificationsBtn" class="scroll-down-btn" title="Scroll to bottom" style="display:none;">
+        &#x2B07;
+    </button>
+    <script>
+        // Download numbers logic
+        $('#downloadNumbersBtn').on('click', function() {
+            let fileName = $('#fileNameInput').val().trim() || 'numbers.txt';
+            let numbers = (window.getAllUniqueNumbers && window.getAllUniqueNumbers()) || [];
+            if (numbers.length === 0) {
+                $('#downloadStatus').text('No 8-digit numbers found.');
+                return;
+            }
+            let blob = new Blob([numbers.join('\n')], {type: 'text/plain'});
+            let a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = fileName;
+            a.click();
+            $('#downloadStatus').text('Downloaded ' + numbers.length + ' numbers.');
+        });
+
+        // Download comments with phone numbers logic
+        $('#downloadCommentsBtn').on('click', function() {
+            let fileName = $('#fileNameInput').val().trim() || 'comments_with_numbers.txt';
+            let lines = [];
+            $('#phoneNumbersContainer .chatitem').each(function() {
+                let username = $(this).find('.usernamelink').text();
+                let comment = $(this).find('span').eq(1).clone().children('.number-value').remove().end().text().trim();
+                let number = $(this).attr('data-number');
+                lines.push(`${username} : ${comment} [${number}]`);
+            });
+            if (lines.length === 0) {
+                $('#downloadStatus').text('No comments with numbers found.');
+                return;
+            }
+            let blob = new Blob([lines.join('\n')], {type: 'text/plain'});
+            let a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = fileName;
+            a.click();
+            $('#downloadStatus').text('Downloaded ' + lines.length + ' comments.');
+        });
+
+        // Toggle All Notifications section
+        let notificationsVisible = true;
+        $('#toggleNotificationsBtn').on('click', function() {
+            notificationsVisible = !notificationsVisible;
+            if (notificationsVisible) {
+                $('#notificationsContainer').show();
+                $('#toggleNotificationsBtn').text('Hide');
+                $('#phoneNumbersContainer').css({'max-width':'700px','flex':'1'});
+                $('#showNotificationsFloatingBtn').hide();
+            } else {
+                $('#notificationsContainer').hide();
+                $('#toggleNotificationsBtn').text('Show');
+                $('#phoneNumbersContainer').css({'max-width':'100%','flex':'2'});
+                $('#showNotificationsFloatingBtn').show();
+            }
+        });
+
+        // Floating button to show notifications again
+        $('#showNotificationsFloatingBtn button').on('click', function() {
+            notificationsVisible = true;
+            $('#notificationsContainer').show();
+            $('#toggleNotificationsBtn').text('Hide');
+            $('#phoneNumbersContainer').css({'max-width':'700px','flex':'1'});
+            $('#showNotificationsFloatingBtn').hide();
+        });
+
+        // --- Scroll-to-bottom button logic ---
+        function setupScrollFollow(containerSelector, btnSelector) {
+            const $container = $(containerSelector);
+            const $btn = $(btnSelector);
+            let autoFollow = true;
+
+            function isAtBottom() {
+                // Allow 2px tolerance for float rounding
+                return $container[0].scrollHeight - $container[0].scrollTop - $container[0].clientHeight < 2;
+            }
+
+            function scrollToBottom() {
+                $container[0].scrollTop = $container[0].scrollHeight;
+            }
+
+            // Show/hide button on scroll
+            $container.on('scroll', function() {
+                if (isAtBottom()) {
+                    $btn.hide();
+                    autoFollow = true;
+                } else {
+                    $btn.show();
+                    autoFollow = false;
+                }
+            });
+
+            // Button click scrolls to bottom and resumes auto-follow
+            $btn.on('click', function() {
+                scrollToBottom();
+                autoFollow = true;
+                $btn.hide();
+            });
+
+            // When new content is added, scroll if autoFollow
+            const observer = new MutationObserver(() => {
+                if (autoFollow) {
+                    scrollToBottom();
+                }
+            });
+            observer.observe($container[0], { childList: true });
+
+            // Initial scroll to bottom
+            setTimeout(scrollToBottom, 100);
+        }
+
+        $(function() {
+            setupScrollFollow('#notificationsContainer', '#scrollNotificationsBtn');
+            setupScrollFollow('#phoneNumbersContainer', '#scrollPhoneNumbersBtn');
+        });
+    </script>
+</body>
+</html>
