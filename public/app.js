@@ -11,15 +11,11 @@ if (!window.settings) window.settings = {};
 
 $(document).ready(() => {
     $('#connectButton').click(connect);
-    // Remove username input logic
-    // $('#uniqueIdInput').on('keyup', function (e) { ... });
-    // Always connect to the constant channel if not already connected
-    // Optionally auto-connect on load if desired
-    // connect();
+   
 })
 
 // Hardcoded TikTok channel
-const HARDCODED_CHANNEL = "tayssirmansourbrigui";
+const HARDCODED_CHANNEL = "zembra_live";
 
 function connect() {
     let uniqueId = HARDCODED_CHANNEL;
@@ -35,8 +31,7 @@ function connect() {
             updateRoomStats();
         }).catch(errorMessage => {
             $('#stateText').text(errorMessage);
-            // schedule next try if obs username set
-            // (not needed for hardcoded channel)
+            
         })
     }
 }
@@ -175,12 +170,7 @@ function addNotificationItem(color, data, text, temporary = false) {
     }
 }
 
-// --- Editing and Adding Numbers ---
-// Remove event delegation for edit, delete, add-to-numbers
 
-// $('#phoneNumbersContainer').on('click', '.edit-number-btn', ...);
-// $('#phoneNumbersContainer').on('click', '.delete-number-btn', ...);
-// $('#notificationsContainer').on('click', '.add-to-numbers-btn', ...);
 
 // --- Counters ---
 let subscriptionsCount = 0;
